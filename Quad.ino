@@ -23,16 +23,16 @@
 #define ROLL_MAX         1950
 #define YAW_MAX          1950
 
-#define PIN_MOTOR1       3
-#define PIN_MOTOR2       4
-#define PIN_MOTOR3       5
-#define PIN_MOTOR4       6
-#define PIN_SWITCH       7
+#define PIN_MOTOR1       4
+#define PIN_MOTOR2       5
+#define PIN_MOTOR3       6
+#define PIN_MOTOR4       7
 #define PIN_KNOB         8
-#define PIN_THROTTLE     10
-#define PIN_ROLL         11
-#define PIN_PITCH        12
-#define PIN_YAW          13
+#define PIN_SWITCH       9
+#define PIN_YAW          10
+#define PIN_PITCH        11
+#define PIN_ROLL         12
+#define PIN_THROTTLE     13
 
 // Clock vars
 unsigned long microsLastImuRead, microsPerImuRead;
