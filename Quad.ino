@@ -5,8 +5,8 @@
 
 #define SAMPLE_FREQUENCY 100
 
-#define IMU_CALIB_PITCH  4.50
-#define IMU_CALIB_ROLL   -4.50
+#define IMU_CALIB_PITCH  4.75
+#define IMU_CALIB_ROLL   -3.75
 #define IMU_CALIB_YAW    180.0
 
 #define MOTOR_POWER_OFF  900
@@ -51,9 +51,9 @@ double pidTuneD = 0.0;
 double pidPitchSetpoint, pidPitchInput, pidPitchOutput;
 double pidRollSetpoint, pidRollInput, pidRollOutput;
 double pidYawSetpoint, pidYawInput, pidYawOutput;
-PID pidPitch(&pidPitchInput, &pidPitchOutput, &pidPitchSetpoint, 1.0, 0.0, 0.1, REVERSE);
-PID pidRoll(&pidRollInput, &pidRollOutput, &pidRollSetpoint, 1.0, 0.0, 0.1, REVERSE);
-PID pidYaw(&pidYawInput, &pidYawOutput, &pidYawSetpoint, 1.0, 0.0, 0.0, REVERSE);
+PID pidPitch(&pidPitchInput, &pidPitchOutput, &pidPitchSetpoint, 1.0, 0.75, 0.15, REVERSE);
+PID pidRoll(&pidRollInput, &pidRollOutput, &pidRollSetpoint, 1.0, 0.75, 0.15, REVERSE);
+PID pidYaw(&pidYawInput, &pidYawOutput, &pidYawSetpoint, 1.0, 0.0, 0.1, REVERSE);
 
 // RC vars
 volatile unsigned long rcThrottleRiseTime;
