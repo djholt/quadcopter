@@ -1,5 +1,6 @@
 #include <CurieIMU.h>
 #include <MadgwickAHRS.h>
+#include <MedianFilter.h>
 #include <PID_v1.h>
 #include <Servo.h>
 
@@ -11,16 +12,16 @@
 
 #define MOTOR_POWER_OFF  900
 
-#define THROTTLE_CUTOFF  1050
+#define THROTTLE_CUTOFF  1100
 
-#define PITCH_MIN        1050
-#define ROLL_MIN         1050
+#define PITCH_MIN        1000
+#define ROLL_MIN         1015
 #define YAW_MIN          1000
-#define PITCH_MID        1500
-#define ROLL_MID         1500
+#define PITCH_MID        1475
+#define ROLL_MID         1475
 #define YAW_MID          1475
-#define PITCH_MAX        1950
-#define ROLL_MAX         1950
+#define PITCH_MAX        1920
+#define ROLL_MAX         1935
 #define YAW_MAX          1910
 
 #define PIN_MOTOR1       4
@@ -36,6 +37,7 @@
 
 // Clock vars
 unsigned long microsLastImuRead, microsPerImuRead;
+unsigned long microsLastRcFilter, microsPerRcFilter;
 unsigned long microsLastYawUpdate, microsPerYawUpdate;
 
 // IMU vars
@@ -56,6 +58,12 @@ PID pidRoll(&pidRollInput, &pidRollOutput, &pidRollSetpoint, 1.0, 0.75, 0.15, RE
 PID pidYaw(&pidYawInput, &pidYawOutput, &pidYawSetpoint, 1.0, 0.0, 0.1, REVERSE);
 
 // RC vars
+MedianFilter rcThrottleFilter(8, 0);
+MedianFilter rcPitchFilter(8, 0);
+MedianFilter rcRollFilter(8, 0);
+MedianFilter rcYawFilter(8, 0);
+MedianFilter rcKnobFilter(8, 0);
+MedianFilter rcSwitchFilter(8, 0);
 volatile unsigned long rcThrottleRiseTime;
 volatile unsigned long rcThrottleValue;
 volatile unsigned long rcPitchRiseTime;
@@ -75,6 +83,8 @@ void setup() {
   // init clocks
   microsLastImuRead = micros();
   microsPerImuRead = 1000000 / SAMPLE_FREQUENCY;
+  microsLastRcFilter = micros();
+  microsPerRcFilter = 1000000 / SAMPLE_FREQUENCY;
   microsLastYawUpdate = micros();
   microsPerYawUpdate = 1000000 / 10;
 
@@ -125,9 +135,30 @@ void setup() {
 }
 
 void loop() {
+  filterRC();
   readIMU();
   updatePIDs();
   writeMotors();
+}
+
+void filterRC() {
+  if (micros() - microsLastRcFilter >= microsPerRcFilter) {
+    rcThrottleFilter.in(rcThrottleValue);
+    rcPitchFilter.in(rcPitchValue);
+    rcRollFilter.in(rcRollValue);
+    rcYawFilter.in(rcYawValue);
+    rcKnobFilter.in(rcKnobValue);
+    rcSwitchFilter.in(rcSwitchValue);
+    microsLastRcFilter = micros();
+  }
+
+//  Serial.print(rcThrottleFilter.out());
+//  Serial.print(" ");
+//  Serial.print(rcPitchFilter.out());
+//  Serial.print(" ");
+//  Serial.print(rcRollFilter.out());
+//  Serial.print(" ");
+//  Serial.println(rcYawFilter.out());
 }
 
 void readIMU() {
@@ -150,12 +181,19 @@ void readIMU() {
 }
 
 void updatePIDs() {
-  if (rcSwitchValue > 1000 && rcSwitchValue < 1100) {
-    pidTuneP = map(rcKnobValue, 1000, 2000, 0, 200) / 100.0;
-  } else if (rcSwitchValue > 1450 && rcSwitchValue < 1550) {
-    pidTuneI = map(rcKnobValue, 1000, 2000, 0, 100) / 100.0;
-  } else if (rcSwitchValue > 1900 && rcSwitchValue < 2000) {
-    pidTuneD = map(rcKnobValue, 1000, 2000, 0, 200) / 1000.0;
+  int rcThrottle = rcThrottleFilter.out();
+  int rcPitch = rcPitchFilter.out();
+  int rcRoll = rcRollFilter.out();
+  int rcYaw = rcYawFilter.out();
+  int rcKnob = rcKnobFilter.out();
+  int rcSwitch = rcSwitchFilter.out();
+
+  if (rcSwitch > 1000 && rcSwitch < 1100) {
+    pidTuneP = map(rcKnob, 1000, 2000, 0, 200) / 100.0;
+  } else if (rcSwitch > 1450 && rcSwitch < 1550) {
+    pidTuneI = map(rcKnob, 1000, 2000, 0, 100) / 100.0;
+  } else if (rcSwitch > 1900 && rcSwitch < 2000) {
+    pidTuneD = map(rcKnob, 1000, 2000, 0, 200) / 1000.0;
   }
 
 //  pidPitch.SetTunings(pidTuneP, pidTuneI, pidTuneD);
@@ -170,20 +208,20 @@ void updatePIDs() {
   pidYawInput = 360 - yaw;
 
   pidPitchSetpoint = IMU_CALIB_PITCH;
-  if (rcPitchValue < PITCH_MID - 25 || rcPitchValue > PITCH_MID + 25) {
-    pidPitchSetpoint += map(rcPitchValue, PITCH_MIN, PITCH_MAX, -30, 30);
+  if (rcPitch < PITCH_MID - 40 || rcPitch > PITCH_MID + 40) {
+    pidPitchSetpoint += map(rcPitch, PITCH_MIN, PITCH_MAX, -30, 30);
   }
 
   pidRollSetpoint = IMU_CALIB_ROLL;
-  if (rcRollValue < ROLL_MID - 25 || rcRollValue > ROLL_MID + 25) {
-    pidRollSetpoint += map(rcRollValue, ROLL_MIN, ROLL_MAX, -30, 30);
+  if (rcRoll < ROLL_MID - 40 || rcRoll > ROLL_MID + 40) {
+    pidRollSetpoint += map(rcRoll, ROLL_MIN, ROLL_MAX, -30, 30);
   }
 
-  if (rcThrottleValue <= THROTTLE_CUTOFF) {
+  if (rcThrottle <= THROTTLE_CUTOFF) {
     pidYawSetpoint = pidYawInput;
   } else if (micros() - microsLastYawUpdate >= microsPerYawUpdate) {
-    if (rcYawValue < YAW_MID - 25 || rcYawValue > YAW_MID + 25) {
-      pidYawSetpoint += map(rcYawValue, YAW_MIN, YAW_MAX, -10, 10);
+    if (rcYaw < YAW_MID - 40 || rcYaw > YAW_MID + 40) {
+      pidYawSetpoint += map(rcYaw, YAW_MIN, YAW_MAX, -10, 10);
     }
     if (pidYawSetpoint < 0) {
       pidYawSetpoint += 360;
@@ -227,12 +265,13 @@ void updatePIDs() {
 }
 
 void writeMotors() {
-  unsigned long throttle = rcThrottleValue;
-  if (throttle > THROTTLE_CUTOFF) {
-    int m1Power = throttle + pidPitchOutput + pidRollOutput - pidYawOutput; // front right
-    int m2Power = throttle + pidPitchOutput - pidRollOutput + pidYawOutput; // front left
-    int m3Power = throttle - pidPitchOutput - pidRollOutput - pidYawOutput; // back left
-    int m4Power = throttle - pidPitchOutput + pidRollOutput + pidYawOutput; // back right
+  int rcThrottle = rcThrottleFilter.out();
+
+  if (rcThrottle > THROTTLE_CUTOFF) {
+    int m1Power = rcThrottle + pidPitchOutput + pidRollOutput - pidYawOutput; // front right
+    int m2Power = rcThrottle + pidPitchOutput - pidRollOutput + pidYawOutput; // front left
+    int m3Power = rcThrottle - pidPitchOutput - pidRollOutput - pidYawOutput; // back left
+    int m4Power = rcThrottle - pidPitchOutput + pidRollOutput + pidYawOutput; // back right
     motor1.writeMicroseconds(m1Power);
     motor2.writeMicroseconds(m2Power);
     motor3.writeMicroseconds(m3Power);
