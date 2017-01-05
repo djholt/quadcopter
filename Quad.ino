@@ -15,13 +15,13 @@
 
 #define PITCH_MIN        1050
 #define ROLL_MIN         1050
-#define YAW_MIN          1050
+#define YAW_MIN          1000
 #define PITCH_MID        1500
 #define ROLL_MID         1500
-#define YAW_MID          1500
+#define YAW_MID          1475
 #define PITCH_MAX        1950
 #define ROLL_MAX         1950
-#define YAW_MAX          1950
+#define YAW_MAX          1910
 
 #define PIN_MOTOR1       4
 #define PIN_MOTOR2       5
@@ -192,6 +192,15 @@ void updatePIDs() {
       pidYawSetpoint -= 360;
     }
     microsLastYawUpdate = micros();
+  }
+
+  // adjust yaw input such that error is within [-180,180]
+  double pidYawError = pidYawSetpoint - pidYawInput;
+  if (pidYawError > 180) {
+    pidYawInput += 360;
+  }
+  if (pidYawError < -180) {
+    pidYawInput -= 360;
   }
 
   pidPitch.Compute();
